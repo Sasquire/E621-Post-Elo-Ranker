@@ -1,0 +1,58 @@
+<div id="main">
+	<!-- TODO better accessability for these tabs? not properly
+	indicated that they are buttons -->
+	<div id="pane_header">
+		<span>Post Ranker</span>
+		<span>Post Listing</span>
+		<span>Local Database</span>
+		<span>Settings</span>
+		<span>About</span>
+	</div>
+	<!-- Post Ranker -->
+	<div id="pane1" class="pane">
+		<div id="ranker_header">
+			<span>Use posts matching <input type="text" placeholder="e621 tagstring" id="post_ranker_tagstring"></input>. <span id="post_ranker_count">UNLOADED</span> posts loaded.</span>
+			<br/>
+			<button id="ranker_new_posts">New images</button>
+		</div>
+		<div id="ranker_page">
+			<div id="ranker_post_1"></div>
+			<div id="ranker_post_2"></div>
+		</div>
+	</div>
+	<!-- Post Listing -->
+	<div id="pane2" class="pane">
+		<div id="page2">
+		</div>
+	</div>
+	<!-- Local Database -->
+	<div id="database_pane" class="pane">
+		<div id="database_pane_header">
+			<span>Detected <span id="database_pane_usage">UNLOADED</span> posts in the local database. <span id="database_pane_memory_usage">UNLOADED</span> are loaded into memory.</span>
+			<br/>
+			<button id="add_e621_posts">Add/Update from e621 search</button>
+			<input id="database_e621_post_searchstring" type="text" placeholder="e621 search string"></input>
+			<span id="loading_e621_posts" class="hidden">Currently loading e621 posts. Please be patient.</span>
+			<br/>
+			<button id="database_load_posts">Load posts into memory</button>
+			<span id="loading_posts_into_memory" class="hidden">Currently loading posts into memory. Please be patient.</span>
+			<br/>
+			<button id="database_remove_favorites">Remove Favorite info</button>
+			<br/>
+			<button id="database_dump_database">Erase database</button>
+		</div>
+		<div id="database_pane_page">
+			
+		</div>
+	</div>
+	<!-- Settings -->
+	<div id="pane4" class="pane">
+		<div id="page3">
+		</div>
+	</div>
+	<!-- About -->
+	<div id="pane5" class="pane">
+		<div id="page5">
+		</div>
+	</div>
+</div>

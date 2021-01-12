@@ -1,7 +1,7 @@
 const E621API = require('./../../dependencies/e621_API.commonjs2.userscript.js');
 const gm_values = require('./gm_values.js');
 
-const user_agent_string = 'Idem\'s Sourcing Suite';
+const user_agent_string = 'Idem\'s Post ELO Ranker thing';
 
 const e621 = new E621API(user_agent_string);
 

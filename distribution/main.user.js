@@ -2468,7 +2468,9 @@ module.exports = gm_object;
 module.exports = {
 	// Values so that the helper function will have something to return.
 	username: null,
-	api_key: null
+	api_key: null,
+
+	default_elo: 1000
 };
 
 },{}],5:[function(require,module,exports){
@@ -2478,19 +2480,362 @@ if (here.href === 'https://e621.net/extensions') {
 	require('./settings_page/settings_page.js').exec();
 } else if (here.href === 'https://e621.net/extensions/elo_ranker') {
 	console.log('e621-elo-ranker ranking page detected');
-	require('./page/index.js').exec();
+	require('./ranking_page/main.js').exec();
 }
 
-},{"./page/index.js":6,"./settings_page/settings_page.js":7}],6:[function(require,module,exports){
+},{"./ranking_page/main.js":10,"./settings_page/settings_page.js":12}],6:[function(require,module,exports){
+const options = {
+	e621: {
+		thumb: (key, data) => {
+			const container = document.createElement('a');
+			container.classList.add('thumb');
+
+			const img = document.createElement('img');
+			const info = document.createElement('span');
+
+			container.appendChild(img);
+			container.appendChild(info);
+
+			container.href = `https://e621.net/posts/${data.data.post_id}`;
+			container.dataset.key = `thumb-${key}`;
+			container.target = '_blank';
+			img.src = (() => {
+				const start = `https://static1.e621.net/data/preview/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}`;
+				if (data.data.file_ext === 'swf') {
+					return 'https://static1.e621.net/images/download-preview.png';
+				} else {
+					return `${start}.jpg`;
+				}
+			})();
+			info.textContent = `e621: ${data.data.post_id}`;
+
+			return container;
+		},
+		full: (key, data) => {
+			const container = document.createElement('div');
+			container.dataset.key = `full-${key}`;
+
+			const img = document.createElement('img');
+			const info = document.createElement('span');
+
+			const link = document.createElement('a');
+			link.href = `https://e621.net/posts/${data.data.post_id}`;
+			link.textContent = `e621: ${data.data.post_id}`;
+			link.target = '_blank';
+			info.appendChild(link);
+
+			const elo = document.createElement('span');
+			elo.textContent = `elo: ${data.elo}`;
+			info.appendChild(elo);
+
+			container.appendChild(img);
+			container.appendChild(info);
+
+			img.src = (() => {
+			//	if (data.data.file_ext === 'swf') {
+			//		return 'https://static1.e621.net/images/download-preview.png';
+			//	} else {
+				return `https://static1.e621.net/data/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}.${data.data.file_ext}`;
+			//	}
+			})();
+
+			return container;
+		}
+	}
+};
+
+function make_thumb (key, data) {
+	const site = options[data.site];
+	if (site !== undefined) {
+		return site.thumb(key, data);
+	} else {
+		return null;
+	}
+}
+
+function make_full (key, data) {
+	const site = options[data.site];
+	if (site !== undefined) {
+		return site.full(key, data);
+	} else {
+		return null;
+	}
+}
+
+module.exports = {
+	make_thumb: make_thumb,
+	make_full: make_full
+};
+
+},{}],7:[function(require,module,exports){
+const {
+	e621,
+	get_authenticated_e621
+} = require('./../utils/utils.js');
+const { make_thumb } = require('./images.js');
+const { default_elo } = require('./../default_settings.js');
+
+const memory_database = {};
+
+function init_local_database_pane () {
+	document.getElementById('add_e621_posts').addEventListener('click', add_posts_from_e621_search);
+	document.getElementById('database_dump_database').addEventListener('click', reset_local_database);
+	document.getElementById('database_remove_favorites').addEventListener('click', remove_fav_info);
+	document.getElementById('database_load_posts').addEventListener('click', load_all_e621_posts);
+
+	if (window.localStorage.getItem('elo_ranker_data') === undefined) {
+		reset_local_database();
+	}
+	// load_all_e621_posts();
+	refresh_local_database_pane();
+}
+
+async function add_posts_from_e621_search () {
+	const search_string = document.getElementById('database_e621_post_searchstring').value;
+	const in_favs = [...new Set(search_string
+		.split(' ')
+		.filter(e => e.startsWith('fav:'))
+		.map(e => e.split('fav:')[1]))];
+
+	document.getElementById('loading_e621_posts').classList.remove('hidden');
+	return get_authenticated_e621().catch(e => e621).then(async api => {
+		const iterator = api.post_search_iterator(search_string);
+		for await (const post of iterator) {
+			add_data_to_database(post.file.md5, {
+				site: 'e621',
+				data: {
+					md5: post.file.md5,
+					file_ext: post.file.ext,
+					post_id: post.id,
+					favs: in_favs
+				},
+				elo: default_elo,
+				times_ranked: 0
+			});
+
+			await new Promise(resolve => setTimeout(resolve, 1));
+		}
+	}).catch(e => null).then(() => {
+		document.getElementById('loading_e621_posts').classList.add('hidden');
+		refresh_local_database_pane();
+	});
+}
+
+async function load_all_e621_posts () {
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	const keys_to_load = Object.entries(posts)
+		.filter(([key, data]) => data.site === 'e621')
+		.map(e => e[0]);
+
+	document.getElementById('loading_posts_into_memory').classList.remove('hidden');
+	for (let i = 0; i < keys_to_load.length; i += 100) {
+		const keys_to_search = [];
+		for (let j = i; (j < i + 100) && (j < keys_to_load.length); j++) {
+			keys_to_search.push(keys_to_load[j]);
+		}
+
+		await get_authenticated_e621().catch(e => e621)
+			.then(async api => api.post_search(`md5:${keys_to_search.join(',')}`))
+			.then(results => results.posts.forEach(e => {
+				memory_database[e.file.md5] = ({
+					key: e.file.md5,
+					tags: Object.values(e.tags).reduce((acc, e) => [...acc, ...e]),
+					favs: posts[e.file.md5].data.favs
+				});
+
+				refresh_local_database_pane();
+			}));
+	}
+	document.getElementById('loading_posts_into_memory').classList.add('hidden');
+}
+
+function get_memory_database () {
+	return memory_database;
+}
+
+function reset_local_database () {
+	Array.from(document.getElementsByClassName('thumb'))
+		.forEach(e => e.parentNode.removeChild(e));
+	window.localStorage.setItem('elo_ranker_data', '{}');
+	refresh_local_database_pane();
+}
+
+function remove_fav_info () {
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	Object.keys(posts).forEach(e => (posts[e].data.favs = []));
+	window.localStorage.setItem('elo_ranker_data', JSON.stringify(posts));
+}
+
+function add_data_to_database (key, data) {
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	if (posts[key] !== undefined) {
+		posts[key].data.favs = [...new Set(posts[key].data.favs.concat(data.data.favs))];
+	} else {
+		posts[key] = data;
+	}
+	window.localStorage.setItem('elo_ranker_data', JSON.stringify(posts));
+
+	refresh_local_database_pane();
+}
+
+function refresh_local_database_pane () {
+	update_database_size();
+	display_images();
+}
+
+function update_database_size () {
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	document.getElementById('database_pane_usage').textContent = Object.keys(posts).length;
+
+	document.getElementById('database_pane_memory_usage').textContent = Object.keys(memory_database).length;
+}
+
+function display_images () {
+	Object.entries(JSON.parse(window.localStorage.getItem('elo_ranker_data')))
+		.filter(([key, data]) => document.querySelector(`[data-key="thumb-${key}"]`) === null)
+		.map(([key, data]) => make_thumb(key, data))
+		.forEach(e => document.getElementById('database_pane_page').appendChild(e));
+}
+
+module.exports = {
+	init_local_database_pane: init_local_database_pane,
+	get_memory_database: get_memory_database
+};
+
+},{"./../default_settings.js":4,"./../utils/utils.js":16,"./images.js":6}],8:[function(require,module,exports){
+module.exports = ":root {\n\t--background-blue: #031131;\n\t--home-blue: #012e56;\n\t--standard-blue: #152f56;\n\t--comment-blue: #213a5f;\n\t--quote-blue: #284a81;\n\t--link-blue: #b4c7d9;\n\t--hover-blue: #2e76b4;\n\n\t--other-blue: #174891;\n\n\t--yellow: #fdba31;\n\t--light-yellow: #ffde9b;\n\t--dark-yellow: #d8b162;\n}\n\n.hidden {\n\tdisplay: none;\n}\n\na {\n\tcolor: var(--link-blue);\n}\n\nbody {\n\tbackground-color: var(--background-blue);\n\tmargin: 0px;\n\tpadding: 0px;\n\tdisplay: flex;\n\tcolor: white;\n}\n\n#pane_header {\n\tdisplay: flex;\n\tflex-direction: row;\n\tbackground-color: var(--standard-blue);\n\tpadding-bottom: 0.4rem;\n\tmargin-bottom: 1rem;\n\twidth: 100vw;\n}\n\n#pane_header > * {\n\tmargin-right: 0.5rem;\n\tmargin-left: 0.5rem;\n\tcolor: var(--yellow);\n\tpadding: 0.2rem 0.5rem;\n\tborder-radius: 0px 0px 0.6rem 0.6rem;\n\tborder: 1px solid black;\n    border-top: none;\n}\n\n#pane_header > .pane_selected {\n\tbackground-color: var(--quote-blue);\n\tcolor: var(--dark-yellow);\n}\n\n.thumb {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n\tmargin: 0.5rem;\n}\n\n.thumb > img {\n\tmax-width: 7rem;\n\tmax-height: 10rem;\n}\n\n#database_pane_page {\n\tdisplay: flex;\n\tflex-wrap: wrap;\n}\n\n#ranker_page {\n\tdisplay: flex;\n\tflex-direction: row;\n\tjustify-content: space-between;\n}\n\n#ranker_page > * {\n\tmargin: 1rem;\n}\n\n#ranker_page img {\n\tmax-width: 45vw;\n\tmax-height: 80vh;\n}\n\n#ranker_post_1 > div, #ranker_post_2 > div {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n}\n\n#page2 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: red;\n}\n\n#page3 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: green;\n}";
+
+},{}],9:[function(require,module,exports){
+module.exports = "<div id=\"main\">\n\t<!-- TODO better accessability for these tabs? not properly\n\tindicated that they are buttons -->\n\t<div id=\"pane_header\">\n\t\t<span>Post Ranker</span>\n\t\t<span>Post Listing</span>\n\t\t<span>Local Database</span>\n\t\t<span>Settings</span>\n\t\t<span>About</span>\n\t</div>\n\t<!-- Post Ranker -->\n\t<div id=\"pane1\" class=\"pane\">\n\t\t<div id=\"ranker_header\">\n\t\t\t<span>Use posts matching <input type=\"text\" placeholder=\"e621 tagstring\" id=\"post_ranker_tagstring\"></input>. <span id=\"post_ranker_count\">UNLOADED</span> posts loaded.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"ranker_new_posts\">New images</button>\n\t\t</div>\n\t\t<div id=\"ranker_page\">\n\t\t\t<div id=\"ranker_post_1\"></div>\n\t\t\t<div id=\"ranker_post_2\"></div>\n\t\t</div>\n\t</div>\n\t<!-- Post Listing -->\n\t<div id=\"pane2\" class=\"pane\">\n\t\t<div id=\"page2\">\n\t\t</div>\n\t</div>\n\t<!-- Local Database -->\n\t<div id=\"database_pane\" class=\"pane\">\n\t\t<div id=\"database_pane_header\">\n\t\t\t<span>Detected <span id=\"database_pane_usage\">UNLOADED</span> posts in the local database. <span id=\"database_pane_memory_usage\">UNLOADED</span> are loaded into memory.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"add_e621_posts\">Add/Update from e621 search</button>\n\t\t\t<input id=\"database_e621_post_searchstring\" type=\"text\" placeholder=\"e621 search string\"></input>\n\t\t\t<span id=\"loading_e621_posts\" class=\"hidden\">Currently loading e621 posts. Please be patient.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"database_load_posts\">Load posts into memory</button>\n\t\t\t<span id=\"loading_posts_into_memory\" class=\"hidden\">Currently loading posts into memory. Please be patient.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"database_remove_favorites\">Remove Favorite info</button>\n\t\t\t<br/>\n\t\t\t<button id=\"database_dump_database\">Erase database</button>\n\t\t</div>\n\t\t<div id=\"database_pane_page\">\n\t\t\t\n\t\t</div>\n\t</div>\n\t<!-- Settings -->\n\t<div id=\"pane4\" class=\"pane\">\n\t\t<div id=\"page3\">\n\t\t</div>\n\t</div>\n\t<!-- About -->\n\t<div id=\"pane5\" class=\"pane\">\n\t\t<div id=\"page5\">\n\t\t</div>\n\t</div>\n</div>";
+
+},{}],10:[function(require,module,exports){
+const {
+	clear_page,
+	add_css
+} = require('./../utils/utils.js');
+
+const {
+	init_local_database_pane
+} = require('./local_database.js');
+
+const {
+	init_ranker_page
+} = require('./ranker_page.js');
+
 function exec () {
-	console.log('Hello world!');
+	clear_page();
+	add_css(require('./main.css'));
+	document.body.innerHTML = require('./main.html');
+
+	init_pane_header();
+}
+
+function select_pane (pane_number) {
+	const panes = Array.from(document.getElementsByClassName('pane'));
+	panes.forEach(e => e.classList.add('hidden'));
+	panes[pane_number].classList.remove('hidden');
+
+	const pane_tabs = Array.from(document.getElementById('pane_header').children);
+	pane_tabs.forEach(e => e.classList.remove('pane_selected'));
+	pane_tabs[pane_number].classList.add('pane_selected');
+
+	[
+		() => null,
+		() => null,
+		() => null,
+		() => null
+	][pane_number]();
+}
+
+function init_pane_header () {
+	const pane_tabs = Array.from(document.getElementById('pane_header').children);
+	pane_tabs.forEach((e, i) => e.addEventListener('click', () => select_pane(i)));
+
+	select_pane(2);
+	init_local_database_pane();
+	init_ranker_page();
 }
 
 module.exports = {
 	exec: exec
 };
 
-},{}],7:[function(require,module,exports){
+},{"./../utils/utils.js":16,"./local_database.js":7,"./main.css":8,"./main.html":9,"./ranker_page.js":11}],11:[function(require,module,exports){
+const { get_memory_database } = require('./local_database.js');
+const { make_full } = require('./images.js');
+let valid_keys = [];
+
+function init_ranker_page () {
+	document.getElementById('post_ranker_tagstring').addEventListener('change', update_available_posts);
+	document.getElementById('ranker_new_posts').addEventListener('click', select_two_posts);
+	update_available_posts();
+}
+
+function update_available_posts () {
+	const search = document.getElementById('post_ranker_tagstring')
+		.value
+		.split(' ')
+		.filter(e => e)
+		.reduce((acc, e) => {
+			if (e.startsWith('fav:')) {
+				acc.favd.push(e.substring(4));
+			} else if (e.startsWith('-')) {
+				acc.doesnt_have.push(e.substring(1));
+			} else {
+				acc.has.push(e);
+			}
+			return acc;
+		}, { has: [], doesnt_have: [], favd: [] });
+
+	valid_keys = Object.entries(get_memory_database())
+		.filter(([key, data]) => {
+			return search.has.every(e => data.tags.includes(e) === true) &&
+				search.doesnt_have.every(e => data.tags.includes(e) === false) &&
+				search.favd.every(e => data.favs.includes(e) === true);
+		})
+		.map(([key, data]) => key);
+
+	document.getElementById('post_ranker_count').textContent = valid_keys.length;
+
+	select_two_posts();
+}
+
+function choose_random_element (arr) {
+	return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function select_two_posts () {
+	clear_posts();
+
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	const valid_posts = Object.entries(posts)
+		.filter(([key, value]) => valid_keys.includes(key));
+	const first_post = choose_random_element(valid_posts);
+	if (first_post === undefined) {
+		return;
+	}
+	const second_post = valid_posts
+		.sort((a, b) => Math.abs(b[1].elo - first_post.elo) - Math.abs(a[1].elo - first_post.elo))
+		.splice(0, 10)
+		.filter(([key, value]) => key !== first_post[0])
+		.sort((a, b) => b.times_ranked - a.times_ranked)[0];
+
+	console.log(first_post, second_post, posts, valid_posts);
+	document.getElementById('ranker_post_1').appendChild(make_full(...first_post));
+	document.getElementById('ranker_post_2').appendChild(make_full(...second_post));
+}
+
+function clear_posts () {
+	Array.from(document.getElementById('ranker_post_1').children)
+		.concat(Array.from(document.getElementById('ranker_post_2').children))
+		.forEach(e => e.parentNode.removeChild(e));
+}
+
+module.exports = {
+	init_ranker_page: init_ranker_page
+};
+
+},{"./images.js":6,"./local_database.js":7}],12:[function(require,module,exports){
 const defaults = require('./../default_settings.js');
 const Settings = require('./../../dependencies/extensions.js');
 const { set_value } = require('./../utils/utils.js');
@@ -2521,11 +2866,11 @@ module.exports = {
 	exec: exec
 };
 
-},{"./../../dependencies/extensions.js":2,"./../default_settings.js":4,"./../utils/utils.js":10}],8:[function(require,module,exports){
+},{"./../../dependencies/extensions.js":2,"./../default_settings.js":4,"./../utils/utils.js":16}],13:[function(require,module,exports){
 const E621API = require('./../../dependencies/e621_API.commonjs2.userscript.js');
 const gm_values = require('./gm_values.js');
 
-const user_agent_string = 'Idem\'s Sourcing Suite';
+const user_agent_string = 'Idem\'s Post ELO Ranker thing';
 
 const e621 = new E621API(user_agent_string);
 
@@ -2545,7 +2890,7 @@ module.exports = {
 	get_authenticated_e621: get_authenticated
 };
 
-},{"./../../dependencies/e621_API.commonjs2.userscript.js":1,"./gm_values.js":9}],9:[function(require,module,exports){
+},{"./../../dependencies/e621_API.commonjs2.userscript.js":1,"./gm_values.js":14}],14:[function(require,module,exports){
 const GM = require('./../../dependencies/gm_functions.js');
 const defaults = require('./../default_settings.js');
 
@@ -2562,10 +2907,72 @@ module.exports = {
 	set_value: set_value
 };
 
-},{"./../../dependencies/gm_functions.js":3,"./../default_settings.js":4}],10:[function(require,module,exports){
+},{"./../../dependencies/gm_functions.js":3,"./../default_settings.js":4}],15:[function(require,module,exports){
+const GM = require('./../../dependencies/gm_functions.js');
+
+function clear_page () {
+	clear_children(document.head);
+	clear_children(document.body);
+}
+
+function clear_children (node) {
+	while (node.firstChild) {
+		remove_node(node.firstChild);
+	}
+}
+
+function move_children (donor_node, new_node) {
+	while (donor_node.firstChild !== null) {
+		new_node.appendChild(donor_node.firstChild);
+	}
+}
+
+function remove_node (node) {
+	if (node) {
+		node.parentNode.removeChild(node);
+	}
+}
+
+function apply_common_styles () {
+	GM.addStyle(`
+		span.iss_hash_checking { color: #830; }	
+		span.iss_hash_notfound { color: #333; }
+		a.iss_hash_found, a.iss_hash_found:visited { color: #4cf; }
+		a.iss_image_link, a.iss_image_link:visited { color: #fff; }
+		.iss_hash { font-family: monospace; }
+	`);
+}
+
+function add_css (css) {
+	GM.addStyle(css);
+}
+
+function string_to_node (string) {
+	return new DOMParser().parseFromString(string, 'text/html').documentElement;
+}
+
+function append (parent, node) {
+	if (node) {
+		parent.appendChild(node);
+	}
+}
+
 module.exports = {
-	...require('./e621_api.js'),
-	...require('./gm_values.js')
+	clear_children: clear_children,
+	clear_page: clear_page,
+	remove_node: remove_node,
+	common_styles: apply_common_styles,
+	add_css: add_css,
+	string_to_node: string_to_node,
+	move_children: move_children,
+	append: append
 };
 
-},{"./e621_api.js":8,"./gm_values.js":9}]},{},[5]);
+},{"./../../dependencies/gm_functions.js":3}],16:[function(require,module,exports){
+module.exports = {
+	...require('./e621_api.js'),
+	...require('./gm_values.js'),
+	...require('./nodes.js')
+};
+
+},{"./e621_api.js":13,"./gm_values.js":14,"./nodes.js":15}]},{},[5]);
