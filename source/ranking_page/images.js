@@ -29,8 +29,8 @@ const options = {
 			const container = document.createElement('div');
 			container.dataset.key = `full-${key}`;
 
-			const img = document.createElement('img');
 			const info = document.createElement('span');
+			info.classList.add('ranker_info_bar');
 
 			const link = document.createElement('a');
 			link.href = `https://e621.net/posts/${data.data.post_id}`;
@@ -42,16 +42,29 @@ const options = {
 			elo.textContent = `elo: ${data.elo}`;
 			info.appendChild(elo);
 
+			const times_ranked = document.createElement('span');
+			times_ranked.textContent = `seen: ${data.times_ranked}`;
+			info.appendChild(times_ranked);
+
+			const img = (() => {
+				if (data.data.file_ext === 'webm') {
+					const img = document.createElement('video');
+					img.controls = 'controls';
+					return img;
+				} else {
+					return document.createElement('img');
+				}
+			})();
+			img.src = (() => {
+				if (data.data.file_ext === 'swf') {
+					return 'https://static1.e621.net/images/download-preview.png';
+				} else {
+					return `https://static1.e621.net/data/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}.${data.data.file_ext}`;
+				}
+			})();
+
 			container.appendChild(img);
 			container.appendChild(info);
-
-			img.src = (() => {
-			//	if (data.data.file_ext === 'swf') {
-			//		return 'https://static1.e621.net/images/download-preview.png';
-			//	} else {
-				return `https://static1.e621.net/data/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}.${data.data.file_ext}`;
-			//	}
-			})();
 
 			return container;
 		}

@@ -85,7 +85,7 @@ body {
 	margin: 1rem;
 }
 
-#ranker_page img {
+#ranker_page img, #ranker_page video {
 	max-width: 45vw;
 	max-height: 80vh;
 }
@@ -98,6 +98,10 @@ body {
 	border: 2px solid black;
 	width: fit-content;
 	height: fit-content;
+}
+
+.ranker_info_bar > * {
+	margin-right: 1rem;
 }
 
 #page2 {

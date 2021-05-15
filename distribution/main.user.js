@@ -2515,8 +2515,8 @@ const options = {
 			const container = document.createElement('div');
 			container.dataset.key = `full-${key}`;
 
-			const img = document.createElement('img');
 			const info = document.createElement('span');
+			info.classList.add('ranker_info_bar');
 
 			const link = document.createElement('a');
 			link.href = `https://e621.net/posts/${data.data.post_id}`;
@@ -2528,16 +2528,29 @@ const options = {
 			elo.textContent = `elo: ${data.elo}`;
 			info.appendChild(elo);
 
+			const times_ranked = document.createElement('span');
+			times_ranked.textContent = `seen: ${data.times_ranked}`;
+			info.appendChild(times_ranked);
+
+			const img = (() => {
+				if (data.data.file_ext === 'webm') {
+					const img = document.createElement('video');
+					img.controls = 'controls';
+					return img;
+				} else {
+					return document.createElement('img');
+				}
+			})();
+			img.src = (() => {
+				if (data.data.file_ext === 'swf') {
+					return 'https://static1.e621.net/images/download-preview.png';
+				} else {
+					return `https://static1.e621.net/data/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}.${data.data.file_ext}`;
+				}
+			})();
+
 			container.appendChild(img);
 			container.appendChild(info);
-
-			img.src = (() => {
-			//	if (data.data.file_ext === 'swf') {
-			//		return 'https://static1.e621.net/images/download-preview.png';
-			//	} else {
-				return `https://static1.e621.net/data/${data.data.md5.substring(0, 2)}/${data.data.md5.substring(2, 4)}/${data.data.md5}.${data.data.file_ext}`;
-			//	}
-			})();
 
 			return container;
 		}
@@ -2703,7 +2716,7 @@ module.exports = {
 };
 
 },{"./../default_settings.js":4,"./../utils/utils.js":16,"./images.js":6}],8:[function(require,module,exports){
-module.exports = ":root {\n\t--background-blue: #031131;\n\t--home-blue: #012e56;\n\t--standard-blue: #152f56;\n\t--comment-blue: #213a5f;\n\t--quote-blue: #284a81;\n\t--link-blue: #b4c7d9;\n\t--hover-blue: #2e76b4;\n\n\t--other-blue: #174891;\n\n\t--yellow: #fdba31;\n\t--light-yellow: #ffde9b;\n\t--dark-yellow: #d8b162;\n}\n\n.hidden {\n\tdisplay: none;\n}\n\na {\n\tcolor: var(--link-blue);\n}\n\nbody {\n\tbackground-color: var(--background-blue);\n\tmargin: 0px;\n\tpadding: 0px;\n\tdisplay: flex;\n\tcolor: white;\n}\n\n#pane_header {\n\tdisplay: flex;\n\tflex-direction: row;\n\tbackground-color: var(--standard-blue);\n\tpadding-bottom: 0.4rem;\n\tmargin-bottom: 1rem;\n\twidth: 100vw;\n}\n\n#pane_header > * {\n\tmargin-right: 0.5rem;\n\tmargin-left: 0.5rem;\n\tcolor: var(--yellow);\n\tpadding: 0.2rem 0.5rem;\n\tborder-radius: 0px 0px 0.6rem 0.6rem;\n\tborder: 1px solid black;\n    border-top: none;\n}\n\n#pane_header > .pane_selected {\n\tbackground-color: var(--quote-blue);\n\tcolor: var(--dark-yellow);\n}\n\n.thumb {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n\tmargin: 0.5rem;\n}\n\n.thumb > img {\n\tmax-width: 7rem;\n\tmax-height: 10rem;\n}\n\n#database_pane_page {\n\tdisplay: flex;\n\tflex-wrap: wrap;\n}\n\n#ranker_page {\n\tdisplay: flex;\n\tflex-direction: row;\n\tjustify-content: space-between;\n}\n\n#ranker_page > * {\n\tmargin: 1rem;\n}\n\n#ranker_page img {\n\tmax-width: 45vw;\n\tmax-height: 80vh;\n}\n\n#ranker_post_1 > div, #ranker_post_2 > div {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n}\n\n#page2 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: red;\n}\n\n#page3 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: green;\n}";
+module.exports = ":root {\n\t--background-blue: #031131;\n\t--home-blue: #012e56;\n\t--standard-blue: #152f56;\n\t--comment-blue: #213a5f;\n\t--quote-blue: #284a81;\n\t--link-blue: #b4c7d9;\n\t--hover-blue: #2e76b4;\n\n\t--other-blue: #174891;\n\n\t--yellow: #fdba31;\n\t--light-yellow: #ffde9b;\n\t--dark-yellow: #d8b162;\n}\n\n.hidden {\n\tdisplay: none;\n}\n\na {\n\tcolor: var(--link-blue);\n}\n\nbody {\n\tbackground-color: var(--background-blue);\n\tmargin: 0px;\n\tpadding: 0px;\n\tdisplay: flex;\n\tcolor: white;\n}\n\n#pane_header {\n\tdisplay: flex;\n\tflex-direction: row;\n\tbackground-color: var(--standard-blue);\n\tpadding-bottom: 0.4rem;\n\tmargin-bottom: 1rem;\n\twidth: 100vw;\n}\n\n#pane_header > * {\n\tmargin-right: 0.5rem;\n\tmargin-left: 0.5rem;\n\tcolor: var(--yellow);\n\tpadding: 0.2rem 0.5rem;\n\tborder-radius: 0px 0px 0.6rem 0.6rem;\n\tborder: 1px solid black;\n    border-top: none;\n}\n\n#pane_header > .pane_selected {\n\tbackground-color: var(--quote-blue);\n\tcolor: var(--dark-yellow);\n}\n\n.thumb {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n\tmargin: 0.5rem;\n}\n\n.thumb > img {\n\tmax-width: 7rem;\n\tmax-height: 10rem;\n}\n\n#database_pane_page {\n\tdisplay: flex;\n\tflex-wrap: wrap;\n}\n\n#ranker_page {\n\tdisplay: flex;\n\tflex-direction: row;\n\tjustify-content: space-between;\n}\n\n#ranker_page > * {\n\tmargin: 1rem;\n}\n\n#ranker_page img, #ranker_page video {\n\tmax-width: 45vw;\n\tmax-height: 80vh;\n}\n\n#ranker_post_1 > div, #ranker_post_2 > div {\n\tdisplay: flex;\n\tflex-direction: column;\n\tbackground-color: var(--standard-blue);\n\tpadding: 0.2rem;\n\tborder: 2px solid black;\n\twidth: fit-content;\n\theight: fit-content;\n}\n\n.ranker_info_bar > * {\n\tmargin-right: 1rem;\n}\n\n#page2 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: red;\n}\n\n#page3 {\n\twidth: 50px;\n\theight: 50px;\n\tbackground-color: green;\n}";
 
 },{}],9:[function(require,module,exports){
 module.exports = "<div id=\"main\">\n\t<!-- TODO better accessability for these tabs? not properly\n\tindicated that they are buttons -->\n\t<div id=\"pane_header\">\n\t\t<span>Post Ranker</span>\n\t\t<span>Post Listing</span>\n\t\t<span>Local Database</span>\n\t\t<span>Settings</span>\n\t\t<span>About</span>\n\t</div>\n\t<!-- Post Ranker -->\n\t<div id=\"pane1\" class=\"pane\">\n\t\t<div id=\"ranker_header\">\n\t\t\t<span>Use posts matching <input type=\"text\" placeholder=\"e621 tagstring\" id=\"post_ranker_tagstring\"></input>. <span id=\"post_ranker_count\">UNLOADED</span> posts loaded.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"ranker_new_posts\">New images</button>\n\t\t</div>\n\t\t<div id=\"ranker_page\">\n\t\t\t<div id=\"ranker_post_1\"></div>\n\t\t\t<div id=\"ranker_post_2\"></div>\n\t\t</div>\n\t</div>\n\t<!-- Post Listing -->\n\t<div id=\"pane2\" class=\"pane\">\n\t\t<div id=\"page2\">\n\t\t</div>\n\t</div>\n\t<!-- Local Database -->\n\t<div id=\"database_pane\" class=\"pane\">\n\t\t<div id=\"database_pane_header\">\n\t\t\t<span>Detected <span id=\"database_pane_usage\">UNLOADED</span> posts in the local database. <span id=\"database_pane_memory_usage\">UNLOADED</span> are loaded into memory.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"add_e621_posts\">Add/Update from e621 search</button>\n\t\t\t<input id=\"database_e621_post_searchstring\" type=\"text\" placeholder=\"e621 search string\"></input>\n\t\t\t<span id=\"loading_e621_posts\" class=\"hidden\">Currently loading e621 posts. Please be patient.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"database_load_posts\">Load posts into memory</button>\n\t\t\t<span id=\"loading_posts_into_memory\" class=\"hidden\">Currently loading posts into memory. Please be patient.</span>\n\t\t\t<br/>\n\t\t\t<button id=\"database_remove_favorites\">Remove Favorite info</button>\n\t\t\t<br/>\n\t\t\t<button id=\"database_dump_database\">Erase database</button>\n\t\t</div>\n\t\t<div id=\"database_pane_page\">\n\t\t\t\n\t\t</div>\n\t</div>\n\t<!-- Settings -->\n\t<div id=\"pane4\" class=\"pane\">\n\t\t<div id=\"page3\">\n\t\t</div>\n\t</div>\n\t<!-- About -->\n\t<div id=\"pane5\" class=\"pane\">\n\t\t<div id=\"page5\">\n\t\t</div>\n\t</div>\n</div>";
@@ -2768,6 +2781,7 @@ let valid_keys = [];
 function init_ranker_page () {
 	document.getElementById('post_ranker_tagstring').addEventListener('change', update_available_posts);
 	document.getElementById('ranker_new_posts').addEventListener('click', select_two_posts);
+	document.body.addEventListener('keypress', handle_keypress);
 	update_available_posts();
 }
 
@@ -2810,19 +2824,79 @@ function select_two_posts () {
 	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
 	const valid_posts = Object.entries(posts)
 		.filter(([key, value]) => valid_keys.includes(key));
-	const first_post = choose_random_element(valid_posts);
+	const lowest_seen = valid_posts
+		.map(e => e[1].times_ranked)
+		.reduce((acc, e) => acc < e ? acc : e, 1e9);
+	const first_post = choose_random_element(valid_posts.filter(e => e[1].times_ranked <= lowest_seen + 1));
 	if (first_post === undefined) {
 		return;
 	}
 	const second_post = valid_posts
-		.sort((a, b) => Math.abs(b[1].elo - first_post.elo) - Math.abs(a[1].elo - first_post.elo))
+		.sort((a, b) => {
+			const elo_diff = Math.abs(a[1].elo - first_post[1].elo) - Math.abs(b[1].elo - first_post[1].elo)
+			const times_ranked_diff = a[1].times_ranked - b[1].times_ranked;
+			if (elo_diff !== 0) {
+				return elo_diff;
+			} else if (times_ranked_diff !== 0) {
+				return times_ranked_diff;
+			} else {
+				return 1 - Math.floor(Math.random() * 3);
+			}
+		})
 		.splice(0, 10)
-		.filter(([key, value]) => key !== first_post[0])
-		.sort((a, b) => b.times_ranked - a.times_ranked)[0];
+		.filter(([key, value]) => key !== first_post[0])[0];
 
-	console.log(first_post, second_post, posts, valid_posts);
 	document.getElementById('ranker_post_1').appendChild(make_full(...first_post));
 	document.getElementById('ranker_post_2').appendChild(make_full(...second_post));
+}
+
+function vote_post (winner) {
+	const k = 50;
+	const key1 = document.getElementById('ranker_post_1').children[0].dataset.key.split('-')[1];
+	const key2 = document.getElementById('ranker_post_2').children[0].dataset.key.split('-')[1];
+	const posts = JSON.parse(window.localStorage.getItem('elo_ranker_data'));
+	const elo1 = posts[key1].elo;
+	const elo2 = posts[key2].elo;
+	const q1 = Math.pow(10, elo1 / 400);
+	const q2 = Math.pow(10, elo2 / 400);
+	const expected1 = q1 / (q1 + q2);
+	const expected2 = q2 / (q1 + q2);
+	const [updated1, updated2] = (() => {
+		if (winner === 'left') {
+			const updated1 = elo1 + k * (1 - expected1);
+			const updated2 = elo2 + k * (0 - expected2);
+			return [updated1, updated2];
+		} else if (winner === 'right') {
+			const updated1 = elo1 + k * (0 - expected1);
+			const updated2 = elo2 + k * (1 - expected2);
+			return [updated1, updated2];
+		} else {
+			// idk lol
+		}
+	})();
+	posts[key1].elo = updated1;
+	posts[key2].elo = updated2;
+	posts[key1].times_ranked += 1;
+	posts[key2].times_ranked += 1;
+	window.localStorage.setItem('elo_ranker_data', JSON.stringify(posts));
+	select_two_posts();
+}
+
+function handle_keypress (event) {
+	if (document.getElementById('pane_header').children[0].classList.contains('pane_selected') === false) {
+		return null;
+	} else if (document.activeElement.id === 'post_ranker_tagstring') {
+		return null;
+	} else if (event.code === 'KeyA' || event.code === 'KeyD' || event.code === 'KeyS') {
+		event.stopPropagation();
+		if (event.code === 'KeyA') {
+			vote_post('left');
+		} else if (event.code === 'KeyD') {
+			vote_post('right');
+		} else if (event.code === 'KeyS') {
+
+		}
+	}
 }
 
 function clear_posts () {
